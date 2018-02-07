@@ -715,6 +715,65 @@ class BaselineModel(object):
         _logger.info("Tokens processed: %s\tCost: %s" % (i, newcost))
         return epochs, newcost
 
+    def score_segmentation(self,segmentation,addcount=1.0):
+        """Return score of a given segmentation according to model
+
+        Arguments:
+          segmentation: existing segmentation (list)
+          addcount: constant for additive smoothing (0 = no smoothing)
+        """
+        compound="".join(segmentation)
+        clen = len(compound)
+        if self._corpus_coding.tokens + self._corpus_coding.boundaries + \
+                addcount > 0:
+            logtokens = math.log(self._corpus_coding.tokens +
+                                 self._corpus_coding.boundaries + addcount)
+        else:
+            logtokens = 0
+        badlikelihood = clen * logtokens + 1.0
+        cost=0.0
+        for construction in segmentation:
+            if (construction in self._analyses and
+                    not self._analyses[construction].splitloc):
+                if self._analyses[construction].count <= 0:
+                    raise MorfessorException(
+                        "Construction count of '%s' is %s" %
+                        (construction,
+                         self._analyses[construction].count))
+                cost += (logtokens -
+                         math.log(self._analyses[construction].count +
+                                  addcount))
+            elif addcount > 0:
+                if self._corpus_coding.tokens == 0:
+                    cost += (addcount * math.log(addcount) +
+                             self._lexicon_coding.get_codelength(
+                                 construction)
+                             / self._corpus_coding.weight)
+                else:
+                    cost += (logtokens - math.log(addcount) +
+                             (((self._lexicon_coding.boundaries +
+                                addcount) *
+                               math.log(self._lexicon_coding.boundaries
+                                        + addcount))
+                              - (self._lexicon_coding.boundaries
+                                 * math.log(self._lexicon_coding.boundaries
+                                            ))
+                              + self._lexicon_coding.get_codelength(
+                                  construction))
+                             / self._corpus_coding.weight)
+            elif len(construction) == 1:
+                cost += badlikelihood
+            elif self.nosplit_re:
+                # Some splits are forbidden, so longer unknown
+                # constructions have to be allowed
+                cost += len(construction) * badlikelihood
+            else:
+                continue
+        cost += (math.log(self._corpus_coding.tokens +
+                          self._corpus_coding.boundaries) -
+                 math.log(self._corpus_coding.boundaries))
+        return cost
+
     def viterbi_segment(self, compound, addcount=1.0, maxlen=30):
         """Find optimal segmentation using the Viterbi algorithm.
 
