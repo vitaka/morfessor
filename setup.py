@@ -14,7 +14,7 @@ requires = [
     #    'progressbar',
 ]
 
-setup(name='Morfessor',
+setup(name='Morfessor-score-cand',
       version=metadata['version'],
       author=metadata['author'],
       author_email='morpho@aalto.fi',
